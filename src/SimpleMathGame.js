@@ -7,23 +7,19 @@ var SimpleMathGame = function(name,options){
   this.range = options.range || [1,100];//range is an array
   this.operator = options.operator || 'add'; //add,subtract,devide,multiply
   this.random = options.random || false;//if it is random it will ask random questions
-  this.incorrectLimit = options.incorrectLimit || 4;//When to goto end
+  this.incorrectLimit = options.incorrectLimit || 0;//Defaults to no lose
 
-  //Game Data
-  this.incorrect = {};//array of {index : indexNo, times : noOfTimesMissed}
-  this.incorrectCount = 0;
-  this.correct = []; //the index of one when it is correctly gotten
-  this.remaining = [];
-  this.equations = [];
-
+  return this;
 };
 
 SimpleMathGame.prototype = {
   /*
   * Setup Sets up the game for different types
   */
-  setup : function(){
-    //If there is no constant then the whole range times the range is the possibilities
+  start : function(){
+
+    this.clear();
+      //If there is no constant then the whole range times the range is the possibilities
     if(!this.constant){
       this.equationsCount = this.range[1]*this.range[1];
       var s = 1;
@@ -62,69 +58,85 @@ SimpleMathGame.prototype = {
     if(!this.random){
       this.onQuestion = 0;
     } else {
-      this.onQuestion = this.remianing[this._randBetween(0,this.remaining.length)];
+      this.onQuestion = this.remaining[this._randBetween(0,(this.remaining.length-1))];
     }
 
-  },
-
-  start : function(){
-    //display the list
-    this.makeQuestion();
-  },
-
-  makeQuestion : function(){
-    var q = this.equations[this.onQuestion];
-    return q;
+    return this.equations[this.onQuestion];
   },
 
   evaluateQuestion : function(answer){
+    var result;
     //possibly need to make both numbers
-    if(answer === this.equations[this.onQuestion].results)
+    if(Number(answer) === Number(this.equations[this.onQuestion].results)) {
+      this._gotQuestionRight();
+      result = 'correct';
+    } else {
+      this._gotQuestionWrong();
+      result = 'incorrect';
+    }
+
+    if(this.incorrectCount >= this.incorrectLimit && this.incorrectLimit != 0){
+      return {result:this.end('lose')};
+    } else {
+      var out = this.nextQuestion();
+      if(out === 'win'){
+        return {result : 'win'};
+      } else {
+        return {result : result, nextQuestion : this.equations[this.onQuestion]};
+      }
+    }
   },
 
   //nextQuestion
   nextQuestion : function(){
-    var question;
     if(this.random){
-      this._tryRandomQuestion();
+      var r = this._tryRandomQuestion();
     } else {
-      this._tryNextQuestion();
+      var r = this._tryNextQuestion();
     }
-    this.makeQuestion();
-  },
-
-
-  //gotQuestionWrong
-  gotQuestionWrong : function(){
-    this.incorrectCount++;
-    if(this.incorrectCount >= this.incorrectLimit){
-      this.end('fail');
+    if(r){
+      return r;
     } else {
-      if(!this.incorrect[this.onQuestion]) {
-        this.incorrect[this.onQuestion] = 1;
-      }  else {
-        this.incorrect[this.onQuestion] ++;
-      }
-      this.nextQuestion();
+      return this.equations[this.onQuestion];
     }
-  },
-
-  //gotQuestionRight
-  gotQuestionRight : function(){
-    var i = this.remaining.indexOf(this.onQuestion);
-    this.remaining.splice(i,1);
-    this.correct.push(i);
-    this.nextQuestion();
   },
 
   //end
   end : function(status){
+    this.clear();
     if(status === 'win'){
-      console.log('Good Job Young Padawon. You have completed this level');
-    } else if(status === 'fail'){
-      console.log('you have failed Missiberaly, and You must pay the consequences');
+      return 'win';
+    } else if(status === 'lose'){
+      return 'lose';
+    } else if(status = 'quit'){
+      return 'quit';
     }
-    this.setup();
+  },
+
+  clear : function(){
+    //Game Data
+    this.incorrect = {};//array of {index : indexNo, times : noOfTimesMissed}
+    this.incorrectCount = 0;
+    this.correct = []; //the index of one when it is correctly gotten
+    this.remaining = [];
+    this.equations = [];
+  },
+
+  //gotQuestionWrong
+  _gotQuestionWrong : function(){
+    this.incorrectCount++;
+    if(!this.incorrect[this.onQuestion]) {
+      this.incorrect[this.onQuestion] = 1;
+    } else {
+      this.incorrect[this.onQuestion] ++;
+    }
+  },
+
+  //gotQuestionRight
+  _gotQuestionRight : function(){
+    var i = this.remaining.indexOf(this.onQuestion);
+    this.remaining.splice(i,1);
+    this.correct.push(i);
   },
 
   _results : function(f,o,s){
@@ -148,10 +160,11 @@ SimpleMathGame.prototype = {
 
   _tryRandomQuestion : function(){
     if(this.correct.length < this.equations.length){
-      var index = this._randBetween(0,this.remaining.length);
+      var index = this._randBetween(0,this.remaining.length-1);
       this.onQuestion = this.remaining[index];
+      return;
     } else {
-      this.end('win');
+      return this.end('win');
     }
   },
 
@@ -166,8 +179,9 @@ SimpleMathGame.prototype = {
       if(this.correct.indexOf(this.onQuestion) > -1){
         this._tryNextQuestion();
       }
+      return;
     } else {
-      this.end('win');
+      return this.end('win');
     }
   },
 
